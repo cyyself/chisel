@@ -410,6 +410,14 @@ abstract class Data extends BaseType with SourceInfoDoc {
       case _                                                                        => super.autoSeed(name)
     }
   }
+  // Special handling for Vec dynamic indices which themselves cannot be named so they forward the name
+  // to a special rvalue node
+  private[chisel3] override def forceAutoSeed(seed: String): this.type = this.binding match {
+    case Some(SubAccessBinding(_, rvalue)) =>
+      rvalue.forceAutoSeed(seed)
+      this
+    case _ => super.forceAutoSeed(seed)
+  }
 
   // probeInfo only exists if this is a probe type
   private var _probeInfoVar:      ProbeInfo = null
@@ -652,7 +660,10 @@ abstract class Data extends BaseType with SourceInfoDoc {
           // partially resolved *after* elaboration completes. If this is resolved, the check should be unconditional.
           requireVisible()
         }
-        Node(this)
+        binding match {
+          case SubAccessBinding(_, rvalue) => Node(rvalue)
+          case _                           => Node(this)
+        }
       case opt => throwException(s"internal error: unknown binding $opt in generating LHS ref")
     }
   }
