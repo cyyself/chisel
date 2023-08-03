@@ -37,7 +37,13 @@ trait CLI { this: BareShell =>
     ThrowOnFirstErrorAnnotation,
     WarningsAsErrorsAnnotation,
     SourceRootAnnotation,
+<<<<<<< HEAD
     SplitVerilog
+=======
+    SplitVerilog,
+    FirtoolBinaryPath,
+    DumpFir
+>>>>>>> 4db86b2f8 (Add --dump-fir option to ChiselStage (#3453))
   ).foreach(_.addOptions(parser))
 }
 
