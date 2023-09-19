@@ -8,7 +8,7 @@ import scala.annotation.nowarn
 import chisel3.experimental.{BaseModule, SourceInfo, UnlocatableSourceInfo}
 import chisel3.internal._
 import chisel3.experimental.hierarchy.{InstanceClone, ModuleClone}
-import chisel3.properties.DynamicObject
+import chisel3.properties.{DynamicObject, StaticObject}
 import chisel3.internal.Builder._
 import chisel3.internal.firrtl._
 import _root_.firrtl.annotations.{IsModule, ModuleTarget}
@@ -145,6 +145,12 @@ abstract class RawModule extends BaseModule {
           // The type's ref can't be set upon instantiation, because the DynamicObject hasn't been named yet.
           id.forceName(default = "_object", _namespace)
           id.getReference.setRef(id.getRef)
+        }
+        case id: StaticObject => {
+          // Set the StaticObject's ref and Property[ClassType] type's ref to the BaseModule for the Class.
+          // Thes refs can't be set upon instantiation, because the ModuleClone hasn't been named yet.
+          id.setRef(id.baseModule.getRef)
+          id.getReference.setRef(id.baseModule.getRef)
         }
         case id: Data =>
           if (id.isSynthesizable) {

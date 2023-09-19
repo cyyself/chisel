@@ -3,6 +3,7 @@
 package chisel3.properties
 
 import chisel3.SpecifiedDirection
+import chisel3.experimental.BaseModule
 import chisel3.internal.{throwException, HasId, NamedComponent, ObjectFieldBinding}
 
 import scala.collection.immutable.HashMap
@@ -35,6 +36,42 @@ class DynamicObject private[chisel3] (val className: ClassType) extends HasId wi
     field
   }
 
+  def getField[T](name: String, property: Property[T]): Property[T] = {
+    val field = property.cloneType
+    field.setRef(this, name)
+    field.bind(ObjectFieldBinding(_parent.get), SpecifiedDirection.Unspecified)
+    field
+  }
+}
+
+/** Represents an instance of a Class.
+  *
+  * This cannot be instantiated directly, instead see Class.getObjectInstance.
+  */
+class StaticObject private[chisel3] (private[chisel3] val baseModule: BaseModule) extends HasId with NamedComponent {
+  private val tpe = Class.unsafeGetReferenceType(baseModule.name)
+
+  _parent.foreach(_.addId(this))
+
+  /** Get a reference to this Object, suitable for use Ports.
+    */
+  def getReference: Property[ClassType] = tpe
+
+  /** Get a field from this Object.
+    *
+    * *WARNING*: It is the caller's responsibility to ensure the field exists, with the correct type and direction.
+    */
+  def getField[T](name: String)(implicit tpe: PropertyType[T]): Property[tpe.Type] = {
+    val field = Property[T]()
+    field.setRef(this, name)
+    field.bind(ObjectFieldBinding(_parent.get), SpecifiedDirection.Unspecified)
+    field
+  }
+
+  /** Get a field from this Object.
+    *
+    * *WARNING*: It is the caller's responsibility to ensure the field exists, with the correct type and direction.
+    */
   def getField[T](name: String, property: Property[T]): Property[T] = {
     val field = property.cloneType
     field.setRef(this, name)

@@ -5,6 +5,7 @@ package chisel3.properties
 import firrtl.{ir => fir}
 import chisel3.{Data, RawModule, SpecifiedDirection}
 import chisel3.experimental.{BaseModule, SourceInfo}
+import chisel3.experimental.hierarchy.{Definition, Instance, ModuleClone}
 import chisel3.internal.{throwException, Builder, ClassBinding, OpBinding}
 import chisel3.internal.firrtl.{Arg, Command, Component, Converter, DefClass, DefObject, ModuleIO, Port, PropAssign}
 
@@ -32,11 +33,18 @@ class Class extends BaseModule {
     // Now that elaboration is complete for this Module, we can finalize names
     for (id <- getIds) {
       id match {
+        case id: ModuleClone[_] => id.setRefAndPortsRef(_namespace) // special handling
         case id: DynamicObject => {
           // Force name of the Object, and set its Property[ClassType] type's ref to the Object.
           // The type's ref can't be set within instantiate, because the Object hasn't been named yet.
           id.forceName(default = "_object", _namespace)
           id.getReference.setRef(id.getRef)
+        }
+        case id: StaticObject => {
+          // Set the StaticObject's ref and Property[ClassType] type's ref to the BaseModule for the Class.
+          // Thes refs can't be set upon instantiation, because the ModuleClone hasn't been named yet.
+          id.setRef(id.baseModule.getRef)
+          id.getReference.setRef(id.baseModule.getRef)
         }
         case id: Data =>
           if (id.isSynthesizable) {
@@ -170,6 +178,48 @@ object Class {
       }
       case cls: Class => {
         cls.addCommand(DefObject(sourceInfo, obj, obj.className.name))
+        classProp.bind(ClassBinding(cls), SpecifiedDirection.Unspecified)
+      }
+      case _ => throwException("Internal Error! Property connection can only occur within RawModule or Class.")
+    }
+
+    obj
+  }
+
+  def getReferenceType(cls: Definition[Class]): Property[ClassType] = {
+    // Get the BaseModule for the Class this is a definition of.
+    val baseModule = cls.getInnerDataContext match {
+      case Some(b) => b
+      case _       => throwException("Internal Error! Class instance did not have an associated BaseModule.")
+    }
+
+    // Get a Property[ClassType] type from the Class name.
+    val classType = ClassType.unsafeGetClassTypeByName(baseModule.name)
+    Property[classType.Type]()
+  }
+
+  def getObjectInstance(cls: Instance[Class]): StaticObject = {
+    // Get the BaseModule for the Class this is an instance of.
+    val baseModule = cls.getInnerDataContext match {
+      case Some(b) => b
+      case _       => throwException("Internal Error! Class instance did not have an associated BaseModule.")
+    }
+
+    // Instantiate the Object.
+    val obj = new StaticObject(baseModule)
+
+    // Get its Property[ClassType] type.
+    val classProp = obj.getReference
+
+    // Get the BaseModule this connect is occuring within, which may be a RawModule or Class.
+    val contextMod = Builder.referenceUserContainer
+
+    // Bind the Property[ClassType] type for this Object.
+    contextMod match {
+      case rm: RawModule => {
+        classProp.bind(OpBinding(rm, Builder.currentWhen), SpecifiedDirection.Unspecified)
+      }
+      case cls: Class => {
         classProp.bind(ClassBinding(cls), SpecifiedDirection.Unspecified)
       }
       case _ => throwException("Internal Error! Property connection can only occur within RawModule or Class.")
